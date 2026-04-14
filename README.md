@@ -25,7 +25,8 @@ Haz clic en el ítem de la statusbar para abrir el panel de desglose completo, c
 ## Novedades en v1.2.0
 
 - **Reset automático al abrir nuevo chat** — Al detectar una nueva sesión de Claude Code, el panel y la barra de estado se reinician automáticamente a cero. Antes los tokens se acumulaban entre chats distintos. Los archivos JSONL anteriores permanecen intactos en disco.
-- **Selector de modelo rediseñado** — El desplegable nativo `<select>` ha sido reemplazado por un selector custom con el estilo de Claude AI: botón con icono de color por modelo, nombre y subtítulo descriptivo, chevron animado, y panel desplegable con checkmark dorado en el modelo activo. Se cierra al hacer clic fuera.
+- **Selector de modelo rediseñado** — El desplegable nativo `<select>` ha sido reemplazado por un selector custom con el estilo de Claude AI: botón con icono de color por modelo, nombre y subtítulo descriptivo, chevron animado, y panel desplegable con checkmark dorado en el modelo activo. Se cierra al hacer clic fuera. **Este selector solo afecta al cálculo de inversión estimada** — no cambia el modelo ni el nivel de razonamiento activo en Claude Code.
+El selector solo muestra los modelos de Claude AI pero no influye en el modelo seleccionado en el chat. Su función es puramente informativa.
 
 ---
 
@@ -106,8 +107,39 @@ Haz clic en la statusbar para abrir el desglose completo. **Se actualiza en tiem
 - **Resumen de Sesión** — totales por tipo de token (Entrada, Salida, Escritura en Caché, Lectura en Caché)
 - **Última Interacción** — tokens de entrada y salida del último mensaje
 - **Capacidad de Contexto** — barra de progreso visual + tokens usados y disponibles
-- **Inversión Estimada** — coste de la sesión según el modelo seleccionado
+- **Inversión Estimada** — coste de la sesión según el modelo seleccionado. El selector de modelo dentro del panel **solo sirve para calcular el coste**: no modifica el modelo activo en Claude Code ni su nivel de razonamiento (Extended Thinking)
 - **Modo Caveman** — integración para activar/instalar el skill de compresión de tokens
+
+---
+
+## Capacidad de Contexto y el comando /compact
+
+La barra **Disponible** refleja el tamaño real del contexto en el último mensaje recibido de Claude Code, calculado como:
+
+```text
+input_tokens + cache_creation_input_tokens + cache_read_input_tokens
+```
+
+Este valor representa cuánto espacio ocupa la conversación activa dentro de la ventana de 200k tokens.
+
+### ¿Por qué sube el % disponible al usar /compact?
+
+Es el comportamiento esperado y correcto. El comando `/compact` de Claude Code comprime todo el historial de la conversación en un resumen, reduciendo el contexto de forma real:
+
+| Momento             | Contexto usado | Disponible |
+|---------------------|----------------|------------|
+| Antes de /compact   | ~156k tokens   | 22%        |
+| Después de /compact | ~24k tokens    | 88%        |
+
+El contexto genuinamente se redujo — el panel lo refleja con precisión. No es un error de la extensión.
+
+### Indicadores de color
+
+| Color    | Rango             | Estado     |
+|----------|-------------------|------------|
+| Verde    | > 50% disponible  | Normal     |
+| Amarillo | 20–50% disponible | Precaución |
+| Rojo     | < 20% disponible  | Crítico    |
 
 ---
 
@@ -128,7 +160,7 @@ Haz clic en la statusbar para abrir el desglose completo. **Se actualiza en tiem
    cd claude-token-tracker
    vsce package
    ```
-   Genera `claude-token-tracker-1.1.0.vsix`.
+   Genera `claude-token-tracker-1.2.0.vsix`.
 
 3. Instala en VSCode:
 
@@ -163,10 +195,10 @@ Añade esto a tu `settings.json` de VSCode (`Ctrl+,` → abrir JSON):
 }
 ```
 
-| Ajuste | Opciones | Por defecto | Descripción |
-|--------|----------|-------------|-------------|
-| `claudeTokenTracker.model` | `sonnet` `opus` `haiku` | `sonnet` | Modelo para el cálculo de inversión |
-| `claudeTokenTracker.currency` | `USD` `EUR` | `USD` | Moneda de visualización |
+| Ajuste                        | Opciones                    | Por defecto | Descripción                                                                                                |
+|-------------------------------|-----------------------------|-------------|------------------------------------------------------------------------------------------------------------|
+| `claudeTokenTracker.model`    | `sonnet`, `opus`, `haiku`   | `sonnet`    | Modelo para el cálculo de inversión estimada. No afecta al modelo ni al razonamiento activo en Claude Code |
+| `claudeTokenTracker.currency` | `USD`, `EUR`                | `USD`       | Moneda de visualización                                                                                    |
 
 ---
 
