@@ -24,7 +24,8 @@ let sessionData = {
   lastMessageOutput: 0,
   messageCount: 0,
   sessionFile: null,
-  processedLines: new Set()
+  processedLines: new Set(),
+  lastUpdateTime: 0
 };
 
 function getClaudeProjectsPath() {
@@ -37,7 +38,7 @@ function getClaudeSessionsPath() {
 
 function cwdToProjectFolder(cwd) {
   // Convierte d:\xampp\htdocs\sure → d--xampp-htdocs-sure
-  return cwd.replace(/[:\\\/]/g, '-').replace(/^-/, '').replace(/-+/g, '-');
+  return cwd.replace(/[:\\\/]/g, '-').replace(/^-/, '');
 }
 
 function findActiveSessionFile(workspacePath) {
@@ -118,7 +119,10 @@ function parseTokensFromJsonl(filePath) {
       } catch { /* skip malformed lines */ }
     }
 
-    if (newMessages) updateStatusBar();
+    if (newMessages) {
+      sessionData.lastUpdateTime = Date.now();
+      updateStatusBar();
+    }
   } catch (e) { /* file read error */ }
 }
 
@@ -158,32 +162,19 @@ function updateStatusBar() {
                   remainingPct > 20 ? '$(warning)' : '$(error)';
 
   statusBarItem.text = `$(sparkle) ${formatTokens(totalTokens)} tok | ctx ${remainingPct}% ${ctxIcon} | ${symbol}${cost.toFixed(4)}`;
-  statusBarItem.tooltip = buildTooltip(sessionData, model, currency, symbol, remaining, cost);
+
+  const sinceUpdate = Date.now() - sessionData.lastUpdateTime;
+  if (sessionData.messageCount === 0) {
+    statusBarItem.tooltip = 'Monitor Claude — Esperando actividad...';
+  } else if (sinceUpdate < 4000) {
+    statusBarItem.tooltip = 'Sesión actualizada — Haz clic para detalles';
+  } else {
+    statusBarItem.tooltip = 'Monitor Claude — Ver desglose de la sesión';
+  }
+
   statusBarItem.show();
 }
 
-function buildTooltip(data, model, currency, symbol, remaining, cost) {
-  const lines = [
-    `Claude Token Tracker — ${model.toUpperCase()}`,
-    `─────────────────────────────`,
-    `Sesión actual`,
-    `  Input:          ${data.totalInput.toLocaleString()} tok`,
-    `  Output:         ${data.totalOutput.toLocaleString()} tok`,
-    `  Cache creación: ${data.totalCacheCreation.toLocaleString()} tok`,
-    `  Cache lectura:  ${data.totalCacheRead.toLocaleString()} tok`,
-    `  Mensajes:       ${data.messageCount}`,
-    `─────────────────────────────`,
-    `Último mensaje`,
-    `  Input:  ${data.lastMessageInput.toLocaleString()} tok`,
-    `  Output: ${data.lastMessageOutput.toLocaleString()} tok`,
-    `─────────────────────────────`,
-    `Contexto restante: ${remaining.toLocaleString()} / ${CONTEXT_WINDOW.toLocaleString()} tok`,
-    `Coste estimado sesión: ${symbol}${cost.toFixed(6)}`,
-    `─────────────────────────────`,
-    `Click → ver detalle completo`
-  ];
-  return lines.join('\n');
-}
 
 function resetSession() {
   sessionData = {
@@ -191,10 +182,10 @@ function resetSession() {
     totalCacheCreation: 0, totalCacheRead: 0,
     lastMessageInput: 0, lastMessageOutput: 0,
     messageCount: 0, sessionFile: null,
-    processedLines: new Set()
+    processedLines: new Set(), lastUpdateTime: 0
   };
   updateStatusBar();
-  vscode.window.showInformationMessage('Claude Token Tracker: sesión reiniciada');
+  vscode.window.showInformationMessage('Monitor de Sesión Claude: sesión reiniciada');
 }
 
 function showDetail() {
@@ -206,7 +197,7 @@ function showDetail() {
   const remaining = CONTEXT_WINDOW - (sessionData.totalInput + sessionData.totalCacheCreation + sessionData.totalCacheRead);
 
   const panel = vscode.window.createWebviewPanel(
-    'claudeTokenDetail', 'Claude Token Tracker', vscode.ViewColumn.Beside, {}
+    'claudeTokenDetail', 'Monitor de Sesión Claude', vscode.ViewColumn.Beside, {}
   );
 
   panel.webview.html = `<!DOCTYPE html>
@@ -225,34 +216,34 @@ function showDetail() {
 </style>
 </head>
 <body>
-<h2>🪨 Claude Token Tracker</h2>
+<h2>🪨 Monitor de Sesión Claude</h2>
 <div class="grid">
   <div class="card">
-    <h3>Sesión total</h3>
+    <h3>Resumen de Sesión</h3>
     <div class="big">${(sessionData.totalInput + sessionData.totalOutput + sessionData.totalCacheCreation + sessionData.totalCacheRead).toLocaleString()}</div>
     <div style="opacity:0.6;font-size:0.8em">tokens consumidos</div>
-    <div class="row" style="margin-top:12px"><span>Input</span><span>${sessionData.totalInput.toLocaleString()}</span></div>
-    <div class="row"><span>Output</span><span>${sessionData.totalOutput.toLocaleString()}</span></div>
-    <div class="row"><span>Cache creación</span><span>${sessionData.totalCacheCreation.toLocaleString()}</span></div>
-    <div class="row"><span>Cache lectura</span><span>${sessionData.totalCacheRead.toLocaleString()}</span></div>
+    <div class="row" style="margin-top:12px"><span>Entrada</span><span>${sessionData.totalInput.toLocaleString()}</span></div>
+    <div class="row"><span>Salida</span><span>${sessionData.totalOutput.toLocaleString()}</span></div>
+    <div class="row"><span>Escritura en Caché</span><span>${sessionData.totalCacheCreation.toLocaleString()}</span></div>
+    <div class="row"><span>Lectura en Caché</span><span>${sessionData.totalCacheRead.toLocaleString()}</span></div>
     <div class="row"><span>Mensajes</span><span>${sessionData.messageCount}</span></div>
   </div>
   <div class="card">
-    <h3>Último mensaje</h3>
-    <div class="row"><span>Input</span><span>${sessionData.lastMessageInput.toLocaleString()}</span></div>
-    <div class="row"><span>Output</span><span>${sessionData.lastMessageOutput.toLocaleString()}</span></div>
+    <h3>Última Interacción</h3>
+    <div class="row"><span>Entrada</span><span>${sessionData.lastMessageInput.toLocaleString()}</span></div>
+    <div class="row"><span>Salida</span><span>${sessionData.lastMessageOutput.toLocaleString()}</span></div>
   </div>
   <div class="card">
-    <h3>Ventana de contexto</h3>
+    <h3>Capacidad de Contexto</h3>
     <div class="big">${Math.max(0, Math.round((remaining / CONTEXT_WINDOW) * 100))}%</div>
-    <div style="opacity:0.6;font-size:0.8em">restante</div>
+    <div style="opacity:0.6;font-size:0.8em">disponible</div>
     <div class="bar-bg"><div class="bar"></div></div>
     <div class="row" style="margin-top:8px"><span>Usado</span><span>${(CONTEXT_WINDOW - remaining).toLocaleString()}</span></div>
-    <div class="row"><span>Restante</span><span>${Math.max(0, remaining).toLocaleString()}</span></div>
+    <div class="row"><span>Disponible</span><span>${Math.max(0, remaining).toLocaleString()}</span></div>
     <div class="row"><span>Total contexto</span><span>${CONTEXT_WINDOW.toLocaleString()}</span></div>
   </div>
   <div class="card">
-    <h3>Coste estimado (${model})</h3>
+    <h3>Inversión Estimada (${model})</h3>
     <div class="big">${symbol}${cost.toFixed(4)}</div>
     <div style="opacity:0.6;font-size:0.8em">esta sesión</div>
   </div>
@@ -300,8 +291,8 @@ function activate(context) {
   // Statusbar
   statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusBarItem.command = 'claudeTokenTracker.showDetail';
-  statusBarItem.text = '$(sparkle) Claude Tokens';
-  statusBarItem.tooltip = 'Claude Token Tracker — esperando sesión...';
+  statusBarItem.text = '$(sparkle) Uso de sesión';
+  statusBarItem.tooltip = 'Monitor Claude — Esperando actividad...';
   statusBarItem.show();
   context.subscriptions.push(statusBarItem);
 
