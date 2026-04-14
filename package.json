@@ -2,7 +2,8 @@
   "name": "claude-token-tracker",
   "displayName": "Monitor de Sesión Claude",
   "description": "Supervisa en tiempo real el consumo de tokens y el coste de tus sesiones con Claude Code, directamente desde tu barra de estado.",
-  "version": "1.0.0",
+  "version": "1.1.0",
+  "icon": "icon.png",
   "publisher": "gatografiko",
   "repository": {
     "type": "git",

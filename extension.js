@@ -14,6 +14,8 @@ const EUR_RATE = 0.92;
 const CONTEXT_WINDOW = 200000;
 
 let statusBarItem;
+let detailPanel = null;
+let cavemanActive = false;
 let fileWatchers = new Map();
 let sessionData = {
   totalInput: 0,
@@ -34,6 +36,10 @@ function getClaudeProjectsPath() {
 
 function getClaudeSessionsPath() {
   return path.join(os.homedir(), '.claude', 'sessions');
+}
+
+function isCavemanInstalled() {
+  return fs.existsSync(path.join(os.homedir(), '.claude', 'skills', 'caveman', 'SKILL.md'));
 }
 
 function cwdToProjectFolder(cwd) {
@@ -153,7 +159,8 @@ function updateStatusBar() {
 
   const totalTokens = sessionData.totalInput + sessionData.totalOutput +
     sessionData.totalCacheCreation + sessionData.totalCacheRead;
-  const remaining = CONTEXT_WINDOW - (sessionData.totalInput + sessionData.totalCacheCreation + sessionData.totalCacheRead);
+  const contextUsed = sessionData.lastMessageInput;
+  const remaining = Math.max(0, CONTEXT_WINDOW - contextUsed);
   const cost = calcCost(sessionData, model, currency);
   const remainingPct = Math.max(0, Math.round((remaining / CONTEXT_WINDOW) * 100));
 
@@ -173,6 +180,10 @@ function updateStatusBar() {
   }
 
   statusBarItem.show();
+
+  if (detailPanel) {
+    detailPanel.webview.html = buildPanelHtml();
+  }
 }
 
 
@@ -188,19 +199,15 @@ function resetSession() {
   vscode.window.showInformationMessage('Monitor de Sesión Claude: sesión reiniciada');
 }
 
-function showDetail() {
+function buildPanelHtml() {
   const config = vscode.workspace.getConfiguration('claudeTokenTracker');
   const model = config.get('model', 'sonnet');
   const currency = config.get('currency', 'USD');
   const symbol = currency === 'EUR' ? '€' : '$';
   const cost = calcCost(sessionData, model, currency);
-  const remaining = CONTEXT_WINDOW - (sessionData.totalInput + sessionData.totalCacheCreation + sessionData.totalCacheRead);
+  const remaining = Math.max(0, CONTEXT_WINDOW - sessionData.lastMessageInput);
 
-  const panel = vscode.window.createWebviewPanel(
-    'claudeTokenDetail', 'Monitor de Sesión Claude', vscode.ViewColumn.Beside, {}
-  );
-
-  panel.webview.html = `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html>
 <head>
 <style>
@@ -247,9 +254,75 @@ function showDetail() {
     <div class="big">${symbol}${cost.toFixed(4)}</div>
     <div style="opacity:0.6;font-size:0.8em">esta sesión</div>
   </div>
+  <div class="card" style="grid-column: 1 / -1; border-top: 1px solid #444; padding-top: 16px;">
+    <h3>🪨 Modo Caveman</h3>
+    <p style="font-size:0.85em;opacity:0.7;margin:4px 0 14px">Comprime respuestas de Claude ~75% manteniendo precisión técnica.</p>
+    ${isCavemanInstalled() ? `
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font-size:0.9em">${cavemanActive ? '● <strong>Activo</strong>' : '○ Inactivo'}</span>
+      <button onclick="sendMsg('toggleCaveman')" style="padding:6px 16px;border:none;border-radius:6px;cursor:pointer;font-size:0.9em;background:${cavemanActive ? '#dc2626' : '#d97706'};color:#fff">
+        ${cavemanActive ? 'Desactivar' : 'Activar Caveman'}
+      </button>
+    </div>
+    <p style="font-size:0.8em;opacity:0.6;margin-top:8px">
+      ${cavemanActive ? 'Comando copiado — pégalo en Claude Code para activar' : 'Al activar, copia <code>/caveman</code> al portapapeles automáticamente'}
+    </p>
+    ` : `
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font-size:0.9em;opacity:0.7">No instalado</span>
+      <button onclick="sendMsg('installCaveman')" style="padding:6px 16px;border:none;border-radius:6px;cursor:pointer;font-size:0.9em;background:#16a34a;color:#fff">
+        Instalar Caveman
+      </button>
+    </div>
+    <p style="font-size:0.8em;opacity:0.6;margin-top:8px">Se instalará globalmente en ~/.claude/skills/caveman/ via terminal</p>
+    `}
+  </div>
 </div>
+<script>
+  const vscode = acquireVsCodeApi();
+  function sendMsg(cmd) { vscode.postMessage({ command: cmd }); }
+</script>
 </body>
 </html>`;
+}
+
+function handlePanelMessage(msg) {
+  if (msg.command === 'toggleCaveman') {
+    cavemanActive = !cavemanActive;
+    const cmd = cavemanActive ? '/caveman' : 'stop caveman';
+    vscode.env.clipboard.writeText(cmd).then(() => {
+      vscode.window.showInformationMessage(
+        cavemanActive
+          ? '🪨 /caveman copiado — pégalo en Claude Code'
+          : 'stop caveman copiado — pégalo en Claude Code'
+      );
+    });
+    if (detailPanel) detailPanel.webview.html = buildPanelHtml();
+  } else if (msg.command === 'installCaveman') {
+    const terminal = vscode.window.createTerminal({ name: 'Instalar Caveman', shellPath: 'powershell.exe' });
+    terminal.show();
+    terminal.sendText(`New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\\.claude\\skills\\caveman"`);
+    terminal.sendText(`Invoke-WebRequest -Uri "https://raw.githubusercontent.com/JuliusBrussee/caveman/main/caveman/SKILL.md" -Headers @{"Accept"="text/plain"} -OutFile "$env:USERPROFILE\\.claude\\skills\\caveman\\SKILL.md"`);
+    setTimeout(() => {
+      if (detailPanel) detailPanel.webview.html = buildPanelHtml();
+    }, 4000);
+  }
+}
+
+function showDetail() {
+  if (detailPanel) {
+    detailPanel.reveal(vscode.ViewColumn.Beside);
+    detailPanel.webview.html = buildPanelHtml();
+    return;
+  }
+
+  detailPanel = vscode.window.createWebviewPanel(
+    'claudeTokenDetail', 'Monitor de Sesión Claude', vscode.ViewColumn.Beside,
+    { enableScripts: true }
+  );
+  detailPanel.webview.html = buildPanelHtml();
+  detailPanel.webview.onDidReceiveMessage(handlePanelMessage);
+  detailPanel.onDidDispose(() => { detailPanel = null; });
 }
 
 function watchCurrentProject() {
