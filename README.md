@@ -1,6 +1,6 @@
 # Claude Token Tracker
 
-> Monitor de uso de tokens en tiempo real para Claude Code — directamente en la barra de estado de VSCode.
+> Monitor de uso de tokens en tiempo real para Claude Code — directamente en la barra de estado de VSCode. Creado con Claude Code para Claude Code.
 
 ![Version](https://img.shields.io/badge/versión-1.0.0-blue)
 ![VSCode](https://img.shields.io/badge/VSCode-1.85%2B-blue?logo=visualstudiocode)
