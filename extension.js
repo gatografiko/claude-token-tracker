@@ -275,25 +275,23 @@ function buildPanelHtml() {
   </div>
   <div class="card">
     <h3>Capacidad de Contexto</h3>
-    <div class="big">${Math.max(0, Math.round((remaining / CONTEXT_WINDOW) * 100))}%</div>
-    <div style="opacity:0.6;font-size:0.8em">disponible</div>
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div class="big">${Math.max(0, Math.round((remaining / CONTEXT_WINDOW) * 100))}%</div>
+        <div style="opacity:0.6;font-size:0.8em">disponible</div>
+      </div>
+      <div style="font-size:2em;line-height:1">${remaining / CONTEXT_WINDOW > 0.5 ? '😊' : remaining / CONTEXT_WINDOW > 0.2 ? '😟' : '😱'}</div>
+    </div>
     <div class="bar-bg"><div class="bar"></div></div>
     <div class="row" style="margin-top:8px"><span>Usado</span><span>${(CONTEXT_WINDOW - remaining).toLocaleString()}</span></div>
     <div class="row"><span>Disponible</span><span>${Math.max(0, remaining).toLocaleString()}</span></div>
     <div class="row"><span>Total contexto</span><span>${CONTEXT_WINDOW.toLocaleString()}</span></div>
-    <p style="font-size:0.85em;color:#d97706;opacity:0.7;margin:8px 0 0;line-height:1.4">Al usar /compact el porcentaje disponible sube: es normal, el contexto se comprimió realmente.</p>
+    <p style="font-size:0.8em;opacity:0.6;margin:8px 0 0;line-height:1.4">Al usar /compact el porcentaje disponible sube: es normal, el contexto se comprimió realmente.</p>
   </div>
   <div class="card">
     <h3>Inversión Estimada</h3>
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
-      <div>
-        <div class="big">${symbol}${cost.toFixed(4)}</div>
-        <div style="opacity:0.6;font-size:0.8em;margin-top:2px">esta sesión</div>
-      </div>
-      <div style="text-align:right;flex-shrink:0;padding-top:4px;max-width:130px">
-        <p style="font-size:0.85em;color:#d97706;opacity:0.7;margin:0;line-height:1.4">Solo afecta la estimación. No cambia el modelo activo en Claude Code.</p>
-      </div>
-    </div>
+    <div class="big">${symbol}${cost.toFixed(4)}</div>
+    <div style="opacity:0.6;font-size:0.8em;margin-top:2px">esta sesión</div>
     <div class="model-selector" id="modelSelector">
       <button class="model-btn" onclick="toggleDropdown()" id="modelBtn">
         <div class="model-btn-left">
@@ -340,6 +338,7 @@ function buildPanelHtml() {
         </div>
       </div>
     </div>
+    <p style="font-size:0.8em;opacity:0.6;margin:8px 0 0;line-height:1.4">Solo afecta la estimación. No cambia el modelo activo en Claude Code.</p>
   </div>
   <div class="card" style="grid-column: 1 / -1; border-top: 1px solid #444; padding-top: 16px;">
     <h3>🪨 Modo Caveman</h3>
