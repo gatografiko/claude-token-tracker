@@ -1,0 +1,39 @@
+{
+  "name": "claude-token-tracker",
+  "displayName": "Claude Token Tracker",
+  "description": "Real-time token usage monitor for Claude Code sessions",
+  "version": "1.0.0",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "claudeTokenTracker.reset",
+        "title": "Claude Token Tracker: Reset Session"
+      },
+      {
+        "command": "claudeTokenTracker.showDetail",
+        "title": "Claude Token Tracker: Show Detail"
+      }
+    ],
+    "configuration": {
+      "title": "Claude Token Tracker",
+      "properties": {
+        "claudeTokenTracker.model": {
+          "type": "string",
+          "default": "sonnet",
+          "enum": ["sonnet", "opus", "haiku"],
+          "description": "Claude model for cost estimation"
+        },
+        "claudeTokenTracker.currency": {
+          "type": "string",
+          "default": "USD",
+          "enum": ["USD", "EUR"],
+          "description": "Currency for cost display"
+        }
+      }
+    }
+  }
+}
