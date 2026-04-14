@@ -1,7 +1,7 @@
 {
   "name": "claude-token-tracker",
-  "displayName": "Claude Token Tracker",
-  "description": "Monitor en tiempo real del uso de tokens de Claude Code en la barra de estado de VSCode",
+  "displayName": "Monitor de Sesión Claude",
+  "description": "Supervisa en tiempo real el consumo de tokens y el coste de tus sesiones con Claude Code, directamente desde tu barra de estado.",
   "version": "1.0.0",
   "publisher": "gatografiko",
   "repository": {
@@ -16,15 +16,15 @@
     "commands": [
       {
         "command": "claudeTokenTracker.reset",
-        "title": "Claude Token Tracker: Reset Session"
+        "title": "Claude Code - Tokens Session Tracker: Reset Session"
       },
       {
         "command": "claudeTokenTracker.showDetail",
-        "title": "Claude Token Tracker: Show Detail"
+        "title": "Claude Code - Tokens Session Tracker: Show Detail"
       }
     ],
     "configuration": {
-      "title": "Claude Token Tracker",
+      "title": "Claude Code - Tokens Session Tracker",
       "properties": {
         "claudeTokenTracker.model": {
           "type": "string",
