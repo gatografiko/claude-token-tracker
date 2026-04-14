@@ -1,3 +1,15 @@
-﻿*.vsix
-.vscode/
+﻿# Binarios compilados
+*.vsix
+
+# Dependencias
 node_modules/
+
+# VSCode local
+.vscode/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Variables de entorno
+.env
