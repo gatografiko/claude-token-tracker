@@ -24,6 +24,8 @@ let sessionData = {
   totalCacheRead: 0,
   lastMessageInput: 0,
   lastMessageOutput: 0,
+  lastThinkingTokens: 0,
+  lastModel: null,
   messageCount: 0,
   sessionFile: null,
   processedLines: new Set(),
@@ -117,6 +119,13 @@ function parseTokensFromJsonl(filePath) {
             sessionData.totalCacheRead += u.cache_read_input_tokens || 0;
             sessionData.lastMessageInput = msgInput;
             sessionData.lastMessageOutput = msgOutput;
+
+            // Detectar thinking y modelo
+            const content = obj.message.content || [];
+            const thinkingText = content.filter(c => c.type === 'thinking').map(c => c.thinking || '').join('');
+            sessionData.lastThinkingTokens = Math.round(thinkingText.length / 4);
+            if (obj.message.model) sessionData.lastModel = obj.message.model;
+
             sessionData.messageCount++;
             sessionData.processedLines.add(line);
             newMessages = true;
@@ -192,12 +201,14 @@ function resetSession() {
     totalInput: 0, totalOutput: 0,
     totalCacheCreation: 0, totalCacheRead: 0,
     lastMessageInput: 0, lastMessageOutput: 0,
+    lastThinkingTokens: 0, lastModel: null,
     messageCount: 0, sessionFile: null,
     processedLines: new Set(), lastUpdateTime: 0
   };
   updateStatusBar();
   vscode.window.showInformationMessage('Monitor de Sesión Claude: sesión reiniciada');
 }
+
 
 function buildPanelHtml() {
   const config = vscode.workspace.getConfiguration('claudeTokenTracker');
@@ -206,7 +217,6 @@ function buildPanelHtml() {
   const symbol = currency === 'EUR' ? '€' : '$';
   const cost = calcCost(sessionData, model, currency);
   const remaining = Math.max(0, CONTEXT_WINDOW - sessionData.lastMessageInput);
-
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -220,6 +230,29 @@ function buildPanelHtml() {
   .row { display: flex; justify-content: space-between; margin: 4px 0; font-size: 0.9em; }
   .bar-bg { background: #333; border-radius: 4px; height: 8px; margin-top: 8px; }
   .bar { background: ${remaining / CONTEXT_WINDOW > 0.5 ? '#22c55e' : remaining / CONTEXT_WINDOW > 0.2 ? '#f59e0b' : '#ef4444'}; height: 8px; border-radius: 4px; width: ${Math.max(0, (remaining / CONTEXT_WINDOW) * 100).toFixed(1)}%; }
+
+  .badge { display:inline-block; font-size:0.78em; padding:2px 9px; border-radius:20px; font-weight:600; }
+  .model-selector { position:relative; margin-top:14px; }
+  .model-btn { width:100%; display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:10px; padding:10px 12px; cursor:pointer; color:inherit; font-family:inherit; transition:background 0.15s; box-sizing:border-box; }
+  .model-btn:hover { background:rgba(255,255,255,0.09); }
+  .model-btn-left { display:flex; align-items:center; gap:10px; }
+  .model-icon-wrap { width:30px; height:30px; border-radius:7px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .model-btn-name { font-size:0.88em; font-weight:600; display:block; }
+  .model-btn-sub { font-size:0.72em; opacity:0.5; display:block; margin-top:1px; }
+  .chevron { flex-shrink:0; transition:transform 0.2s; opacity:0.6; }
+  .chevron.open { transform:rotate(180deg); }
+  .model-dropdown { position:absolute; top:calc(100% + 6px); left:0; right:0; background:#1e1a2e; border:1px solid rgba(255,255,255,0.14); border-radius:12px; overflow:hidden; display:none; z-index:100; box-shadow:0 8px 32px rgba(0,0,0,0.5); }
+  .model-dropdown.open { display:block; }
+  .model-opt { display:flex; align-items:center; justify-content:space-between; padding:11px 14px; cursor:pointer; transition:background 0.12s; gap:10px; }
+  .model-opt:hover { background:rgba(255,255,255,0.07); }
+  .model-opt.active { background:rgba(245,158,11,0.08); }
+  .model-opt-left { display:flex; align-items:center; gap:10px; }
+  .model-opt-icon { width:34px; height:34px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .model-opt-name { font-size:0.87em; font-weight:600; }
+  .model-opt-desc { font-size:0.73em; opacity:0.5; margin-top:2px; }
+  .check { color:#f59e0b; opacity:0; flex-shrink:0; }
+  .model-opt.active .check { opacity:1; }
+  .model-sep { height:1px; background:rgba(255,255,255,0.08); margin:2px 10px; }
 </style>
 </head>
 <body>
@@ -248,11 +281,65 @@ function buildPanelHtml() {
     <div class="row" style="margin-top:8px"><span>Usado</span><span>${(CONTEXT_WINDOW - remaining).toLocaleString()}</span></div>
     <div class="row"><span>Disponible</span><span>${Math.max(0, remaining).toLocaleString()}</span></div>
     <div class="row"><span>Total contexto</span><span>${CONTEXT_WINDOW.toLocaleString()}</span></div>
+    <p style="font-size:0.85em;color:#d97706;opacity:0.7;margin:8px 0 0;line-height:1.4">Al usar /compact el porcentaje disponible sube: es normal, el contexto se comprimió realmente.</p>
   </div>
   <div class="card">
-    <h3>Inversión Estimada (${model})</h3>
-    <div class="big">${symbol}${cost.toFixed(4)}</div>
-    <div style="opacity:0.6;font-size:0.8em">esta sesión</div>
+    <h3>Inversión Estimada</h3>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+      <div>
+        <div class="big">${symbol}${cost.toFixed(4)}</div>
+        <div style="opacity:0.6;font-size:0.8em;margin-top:2px">esta sesión</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;padding-top:4px;max-width:130px">
+        <p style="font-size:0.85em;color:#d97706;opacity:0.7;margin:0;line-height:1.4">Solo afecta la estimación. No cambia el modelo activo en Claude Code.</p>
+      </div>
+    </div>
+    <div class="model-selector" id="modelSelector">
+      <button class="model-btn" onclick="toggleDropdown()" id="modelBtn">
+        <div class="model-btn-left">
+          <div class="model-icon-wrap" style="background:${model === 'opus' ? '#3b1f6e' : model === 'haiku' ? '#064e3b' : '#92400e'}">
+            ${model === 'opus'
+              ? `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5" stroke="white" stroke-width="1.5"/><circle cx="8" cy="8" r="2" fill="white"/></svg>`
+              : model === 'haiku'
+              ? `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2v12M2 8h12" stroke="white" stroke-width="1.5" stroke-linecap="round"/><path d="M4.5 4.5l7 7M11.5 4.5l-7 7" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>`
+              : `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2l1.5 4.5H14l-3.5 2.5 1.5 4.5L8 11l-4 2.5 1.5-4.5L2 6.5h4.5L8 2z" fill="white"/></svg>`
+            }
+          </div>
+          <div>
+            <span class="model-btn-name">${model === 'opus' ? 'Claude Opus 4.6' : model === 'haiku' ? 'Claude Haiku 4.5' : 'Claude Sonnet 4.6'}</span>
+            <span class="model-btn-sub">${model === 'opus' ? 'El más inteligente' : model === 'haiku' ? 'El más veloz' : 'Rápido y capaz'}</span>
+          </div>
+        </div>
+        <svg class="chevron" id="chevron" width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <div class="model-dropdown" id="modelDropdown">
+        <div class="model-opt ${model === 'opus' ? 'active' : ''}" onclick="selectModel('opus')">
+          <div class="model-opt-left">
+            <div class="model-opt-icon" style="background:#3b1f6e"><svg width="18" height="18" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5" stroke="white" stroke-width="1.5"/><circle cx="8" cy="8" r="2" fill="white"/></svg></div>
+            <div><div class="model-opt-name">Claude Opus 4.6</div><div class="model-opt-desc">El más inteligente y potente</div></div>
+          </div>
+          <svg class="check" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-7" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="model-sep"></div>
+        <div class="model-opt ${model === 'sonnet' ? 'active' : ''}" onclick="selectModel('sonnet')">
+          <div class="model-opt-left">
+            <div class="model-opt-icon" style="background:#92400e"><svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M8 2l1.5 4.5H14l-3.5 2.5 1.5 4.5L8 11l-4 2.5 1.5-4.5L2 6.5h4.5L8 2z" fill="white"/></svg></div>
+            <div><div class="model-opt-name">Claude Sonnet 4.6</div><div class="model-opt-desc">Equilibrio entre velocidad e inteligencia</div></div>
+          </div>
+          <svg class="check" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-7" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="model-sep"></div>
+        <div class="model-opt ${model === 'haiku' ? 'active' : ''}" onclick="selectModel('haiku')">
+          <div class="model-opt-left">
+            <div class="model-opt-icon" style="background:#064e3b"><svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M8 2v12M2 8h12" stroke="white" stroke-width="1.5" stroke-linecap="round"/><path d="M4.5 4.5l7 7M11.5 4.5l-7 7" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+            <div><div class="model-opt-name">Claude Haiku 4.5</div><div class="model-opt-desc">El más rápido y compacto</div></div>
+          </div>
+          <svg class="check" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-7" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+      </div>
+    </div>
   </div>
   <div class="card" style="grid-column: 1 / -1; border-top: 1px solid #444; padding-top: 16px;">
     <h3>🪨 Modo Caveman</h3>
@@ -280,14 +367,35 @@ function buildPanelHtml() {
 </div>
 <script>
   const vscode = acquireVsCodeApi();
-  function sendMsg(cmd) { vscode.postMessage({ command: cmd }); }
+  function sendMsg(cmd, value) { vscode.postMessage({ command: cmd, value: value }); }
+  function toggleDropdown() {
+    const dd = document.getElementById('modelDropdown');
+    const ch = document.getElementById('chevron');
+    const open = dd.classList.toggle('open');
+    ch.classList.toggle('open', open);
+  }
+  function selectModel(value) {
+    sendMsg('changeModel', value);
+    document.getElementById('modelDropdown').classList.remove('open');
+    document.getElementById('chevron').classList.remove('open');
+  }
+  document.addEventListener('click', (e) => {
+    const sel = document.getElementById('modelSelector');
+    if (sel && !sel.contains(e.target)) {
+      document.getElementById('modelDropdown').classList.remove('open');
+      document.getElementById('chevron').classList.remove('open');
+    }
+  });
 </script>
 </body>
 </html>`;
 }
 
-function handlePanelMessage(msg) {
-  if (msg.command === 'toggleCaveman') {
+async function handlePanelMessage(msg) {
+  if (msg.command === 'changeModel') {
+    await vscode.workspace.getConfiguration('claudeTokenTracker').update('model', msg.value, true);
+    if (detailPanel) detailPanel.webview.html = buildPanelHtml();
+  } else if (msg.command === 'toggleCaveman') {
     cavemanActive = !cavemanActive;
     const cmd = cavemanActive ? '/caveman' : 'stop caveman';
     vscode.env.clipboard.writeText(cmd).then(() => {
@@ -333,9 +441,14 @@ function watchCurrentProject() {
   const jsonlFile = findActiveSessionFile(cwd);
 
   if (jsonlFile && jsonlFile !== sessionData.sessionFile) {
-    // Nueva sesión detectada
-    sessionData.sessionFile = jsonlFile;
-    sessionData.processedLines = new Set();
+    // Nueva sesión detectada — reset completo
+    sessionData = {
+      totalInput: 0, totalOutput: 0,
+      totalCacheCreation: 0, totalCacheRead: 0,
+      lastMessageInput: 0, lastMessageOutput: 0,
+      messageCount: 0, sessionFile: jsonlFile,
+      processedLines: new Set(), lastUpdateTime: 0
+    };
     parseTokensFromJsonl(jsonlFile);
 
     // Watch del archivo
