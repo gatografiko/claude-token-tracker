@@ -1,8 +1,13 @@
 {
   "name": "claude-token-tracker",
   "displayName": "Claude Token Tracker",
-  "description": "Real-time token usage monitor for Claude Code sessions",
+  "description": "Monitor en tiempo real del uso de tokens de Claude Code en la barra de estado de VSCode",
   "version": "1.0.0",
+  "publisher": "gatografiko",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gatografiko/claude-token-tracker.git"
+  },
   "engines": { "vscode": "^1.85.0" },
   "categories": ["Other"],
   "activationEvents": ["onStartupFinished"],
@@ -25,13 +30,13 @@
           "type": "string",
           "default": "sonnet",
           "enum": ["sonnet", "opus", "haiku"],
-          "description": "Claude model for cost estimation"
+          "description": "Modelo Claude para estimación de coste"
         },
         "claudeTokenTracker.currency": {
           "type": "string",
           "default": "USD",
           "enum": ["USD", "EUR"],
-          "description": "Currency for cost display"
+          "description": "Moneda para mostrar el coste"
         }
       }
     }
